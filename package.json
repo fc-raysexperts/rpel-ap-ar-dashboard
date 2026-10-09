@@ -6,22 +6,30 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "sync-cache": "tsx scripts/sync-cache.ts",
+    "sync-ledger": "tsx scripts/sync-ledger.ts",
+    "check-statement": "tsx scripts/check-statement.ts",
+    "selftest": "tsx scripts/selftest.ts"
   },
   "dependencies": {
+    "@upstash/redis": "^1.39.0",
+    "date-fns": "^3.6.0",
+    "exceljs": "^4.4.0",
     "next": "16.3.5",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "exceljs": "^4.4.0",
-    "date-fns": "^3.6.0"
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
-    "typescript": "^5.5.4",
     "@types/node": "^20.14.15",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "autoprefixer": "^10.4.19",
+    "dotenv": "^18.0.3",
     "postcss": "^8.4.40",
-    "tailwindcss": "^3.4.7"
+    "tailwindcss": "^3.4.7",
+    "tsx": "^4.23.15",
+    "typescript": "^5.5.4"
   }
 }

@@ -23,6 +23,7 @@ function ar(
     agedTotal,
     unappliedCredits,
     netTotal: agedTotal - unappliedCredits,
+    gap: 0,
   };
 }
 
@@ -33,6 +34,7 @@ function ap(vendorName: string, billedTotal: number, unappliedCredits: number): 
     billedTotal,
     unappliedCredits,
     netTotal: billedTotal - unappliedCredits,
+    gap: 0,
   };
 }
 
@@ -69,7 +71,7 @@ export function getMockARSummary(): ARSummary {
     }),
     { less180: 0, more180: 0, agedTotal: 0, unappliedCredits: 0, netTotal: 0 }
   );
-  return { asOfDate: new Date().toISOString(), customers: mockCustomers, grandTotal };
+  return { asOfDate: new Date().toISOString(), customers: mockCustomers, grandTotal, unreconciledCount: 0 };
 }
 
 export function getMockAPSummary(): APSummary {
@@ -81,7 +83,7 @@ export function getMockAPSummary(): APSummary {
     }),
     { billedTotal: 0, unappliedCredits: 0, netTotal: 0 }
   );
-  return { asOfDate: new Date().toISOString(), vendors: mockVendors, grandTotal };
+  return { asOfDate: new Date().toISOString(), vendors: mockVendors, grandTotal, unreconciledCount: 0 };
 }
 
 export function isMockMode(): boolean {

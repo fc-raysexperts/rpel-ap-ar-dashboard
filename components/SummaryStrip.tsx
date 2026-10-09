@@ -23,30 +23,73 @@ interface SummaryStripProps {
   arNet: number;
   arLess180: number;
   arMore180: number;
+  arCount: number;
   apNet: number;
+  apCount: number;
   loading?: boolean;
 }
 
-export function SummaryStrip({ arNet, arLess180, arMore180, apNet, loading }: SummaryStripProps) {
+export function SummaryStrip({
+  arNet,
+  arLess180,
+  arMore180,
+  arCount,
+  apNet,
+  apCount,
+  loading,
+}: SummaryStripProps) {
+  const net = arNet - apNet;
   return (
-    <div className="grid grid-cols-1 gap-px bg-line sm:grid-cols-2">
-      <div className="bg-paper px-6 py-8 sm:px-10 sm:py-10">
-        <p className="text-sm uppercase tracking-wide text-ink/50">Debtors</p>
-        <p className="mt-2 font-serif text-4xl font-semibold text-ledger tabular sm:text-5xl">
-          {loading ? '—' : `₹ ${formatINR(arNet)}`}
+    <div className="grid grid-cols-1 divide-y divide-line border border-line bg-white sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+      <div className="px-7 py-7 sm:px-8 sm:py-9">
+        <div className="flex items-center gap-2">
+          <span className="h-2 w-2 rounded-full bg-ledger" />
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-ink/50">
+            Debtors · {arCount} {arCount === 1 ? 'account' : 'accounts'}
+          </p>
+        </div>
+        <p className="mt-3 font-serif text-[2.6rem] leading-none font-semibold text-ledger tabular">
+          {loading ? '—' : `₹${formatINR(arNet)}`}
         </p>
         {!loading && (
-          <p className="mt-3 font-mono text-sm text-ink/60">
-            &lt;180d ₹{formatINR(arLess180)} &nbsp;·&nbsp; &gt;180d ₹{formatINR(arMore180)}
+          <p className="mt-4 font-mono text-xs text-ink/55">
+            &lt;180d&nbsp;
+            <span className="text-ink/75">₹{formatINR(arLess180)}</span>
+            <span className="mx-2 text-ink/25">/</span>
+            &gt;180d&nbsp;
+            <span className="text-ink/75">₹{formatINR(arMore180)}</span>
           </p>
         )}
       </div>
-      <div className="bg-paper px-6 py-8 sm:px-10 sm:py-10">
-        <p className="text-sm uppercase tracking-wide text-ink/50">Creditors</p>
-        <p className="mt-2 font-serif text-4xl font-semibold text-rust tabular sm:text-5xl">
-          {loading ? '—' : `₹ ${formatINR(apNet)}`}
+
+      <div className="px-7 py-7 sm:px-8 sm:py-9">
+        <div className="flex items-center gap-2">
+          <span className="h-2 w-2 rounded-full bg-rust" />
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-ink/50">
+            Creditors · {apCount} {apCount === 1 ? 'account' : 'accounts'}
+          </p>
+        </div>
+        <p className="mt-3 font-serif text-[2.6rem] leading-none font-semibold text-rust tabular">
+          {loading ? '—' : `₹${formatINR(apNet)}`}
         </p>
-        {!loading && <p className="mt-3 font-mono text-sm text-ink/60">Billed, net of vendor credits</p>}
+        {!loading && <p className="mt-4 font-mono text-xs text-ink/55">Net of vendor credits</p>}
+      </div>
+
+      <div className="px-7 py-7 sm:px-8 sm:py-9">
+        <div className="flex items-center gap-2">
+          <span className="h-2 w-2 rounded-full bg-brass" />
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-ink/50">
+            Net position
+          </p>
+        </div>
+        <p className="mt-3 font-serif text-[2.6rem] leading-none font-semibold text-ink tabular">
+          {loading ? '—' : `₹${formatINR(Math.abs(net))}`}
+        </p>
+        {!loading && (
+          <p className="mt-4 font-mono text-xs text-ink/55">
+            {net >= 0 ? 'Debtors exceed creditors' : 'Creditors exceed debtors'}
+          </p>
+        )}
       </div>
     </div>
   );

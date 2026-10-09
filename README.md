@@ -19,6 +19,28 @@ there's nothing to filter. The one thing invoice-level balances can't see (a pay
 credit note that hasn't been matched to a specific invoice yet) is shown as its own
 transparent "Unapplied Credits" line rather than force-fit into an aging bucket.
 
+## A note on API call volume (read this before wiring in real credentials)
+
+Zoho Books enforces its rate limit **per organization** — 100 requests/minute, and a daily
+cap of 1,000-10,000 depending on plan — shared across every app hitting this Zoho org,
+including any other dashboard (e.g. the MIS one) using the same or a different token. An
+early version of the AR/AP calculators here looped one API call per active customer/vendor
+(3 calls each), which would have cost roughly **1,800 calls for a single page load** at
+RPEL's scale (~220 active customers, ~380 active vendors) — enough to exhaust a full day's
+quota in one refresh and degrade every other Zoho-connected tool for the org.
+
+The current version fetches each transaction type **once for the whole org** (paginated,
+~200 records/call — Invoices, Customer Payments, Credit Notes, Bills, Vendor Payments,
+Vendor Credits) and groups results by contact in memory. Call count now scales with total
+transaction volume, not with contact headcount — typically a few dozen calls per refresh
+rather than thousands.
+
+**Still worth doing before relying on this for anything real:** there's no caching layer
+yet, so every dashboard page load triggers a fresh fetch. If this ends up being loaded
+often, add a cache (e.g. re-fetch on a schedule — hourly or daily — and serve the cached
+result to page loads in between) rather than hitting Zoho live on every visit. Flagging
+this now rather than after it causes a 429 in production.
+
 ## Stack
 
 - Next.js 16 (App Router) + React 19 + TypeScript
@@ -68,21 +90,35 @@ payment (Wonder Cement is a good candidate — its statement had several) agains
 
 ## Deploying
 
-This repo is structured to push straight to a new Git repo and deploy on Vercel, same as
-the other two dashboards:
+Push to a new (private) Git repo, import it into a new Vercel project, and copy the values from
+`.env.local` into **Settings → Environment Variables** before the first deploy (paste the whole
+block). `.env.local` is gitignored and never committed.
 
 ```bash
 git init
 git add .
-git commit -m "Initial commit: RPEL AP/AR ledger dashboard"
+git commit -m "RPEL AP/AR ledger dashboard"
+git branch -M main
 git remote add origin <your-new-repo-url>
 git push -u origin main
 ```
 
-Then in Vercel: **New Project → Import** the repo, and add the same environment variables
-from `.env.local` under **Settings → Environment Variables** before the first deploy.
-`.env.local` itself is gitignored and never committed — credentials only ever live in
-Vercel's environment variable store and your own local `.env.local`.
+Variables on Vercel: the `ZOHO_*` ones, `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN`
+(the same Redis the local `npm run sync-cache` fills, so the site has data from the first load) and
+`CRON_SECRET` (any long random string; it only protects the refresh trigger, not the dashboard).
+
+### How the data is refreshed
+
+Zoho Books is read **once a day, at 07:00 AM IST** (`vercel.json`: `30 1 * * *`, UTC). Everything shown for
+the next 24 hours is that one snapshot: page loads never call Zoho, every visitor sees the same figures, and
+a date later than the snapshot's day is answered as of the snapshot day. If a refresh fails, the previous
+snapshot stays exactly as it was. `GET /api/cron/status` shows when the data was last read.
+
+To refresh by hand: `npm run sync-cache` on a computer with the Zoho keys, or call
+`/api/cron/refresh?force=1` with the header `Authorization: Bearer <CRON_SECRET>`.
+
+On Vercel's Hobby plan a daily cron fires at some point within the hour (06:30 to 07:29 IST) and Hobby is for
+non-commercial use; on Pro it fires within the minute.
 
 ## Known limitations / next steps
 
