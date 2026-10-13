@@ -18,6 +18,8 @@ export interface VendorAP {
 
 export interface APSummary {
   asOfDate: string;
+  /** Set for a custom From-To range: only documents dated from this day on are counted (see payableItems). */
+  fromDate?: string;
   vendors: VendorAP[];
   grandTotal: {
     billedTotal: number;
@@ -48,11 +50,11 @@ const TOL = 1; // rupees
 export function computeAPDetail(
   raw: RawZohoData,
   asOf: string,
-  opts: { ledger?: LedgerBalances | null; historical?: boolean } = {}
+  opts: { ledger?: LedgerBalances | null; historical?: boolean; from?: string } = {}
 ): VendorAP[] {
   const jn = buildJNIndex(raw.jnClean, asOf, raw.ledgerAccounts);
   const kept = keptJNContacts(jn, 'payable'); // contacts whose JN-Clean rows are kept because they do not cancel
-  const { items, credits } = payableItems(raw, asOf, jn);
+  const { items, credits } = payableItems(raw, asOf, jn, opts.from);
   const ledger = opts.ledger?.vendors;
 
   return raw.activeVendors.map((v) => {
@@ -87,8 +89,10 @@ export function computeAPDetail(
 export function computeAPSummary(
   raw: RawZohoData,
   asOf: string,
-  opts: { ledger?: LedgerBalances | null; historical?: boolean } = {}
+  opts: { ledger?: LedgerBalances | null; historical?: boolean; from?: string } = {}
 ): APSummary {
+  // A custom range counts only part of the documents, so Zoho's whole-contact ledger cannot be a check on it.
+  if (opts.from !== undefined) opts = { ...opts, ledger: null, historical: false };
   const vendors = computeAPDetail(raw, asOf, opts).filter((v) => v.netTotal > TOL || (v.ledgerTotal ?? 0) > TOL);
   vendors.sort((a, b) => b.netTotal - a.netTotal);
 
@@ -105,6 +109,7 @@ export function computeAPSummary(
 
   return {
     asOfDate: asOf,
+    ...(opts.from !== undefined ? { fromDate: opts.from } : {}),
     vendors,
     grandTotal,
     ledgerGrandTotal: haveLedger

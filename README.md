@@ -120,6 +120,23 @@ To refresh by hand: `npm run sync-cache` on a computer with the Zoho keys, or ca
 On Vercel's Hobby plan a daily cron fires at some point within the hour (06:30 to 07:29 IST) and Hobby is for
 non-commercial use; on Pro it fires within the minute.
 
+#### The Stock Statement tab
+
+The Stock Statement works the same way, on its own job: **`/api/cron/stock` at 07:45 AM IST** (`15 2 * * *`, UTC)
+reads Zoho's Stock Summary for **every month from April 2026 to today** (the running month up to today) and saves
+each month in Redis. Every earlier month is read again each day, because Zoho lets earlier months change. A page
+load, a period switch and the Excel download only add up those saved months, so they never wait on Zoho. The list
+of products shown on their own line (above Rs 5 lakhs at any month-end of the year) is worked out again from the
+same data every day.
+
+- The very first time (no copy saved yet), call `/api/cron/stock?force=1` once with the header
+  `Authorization: Bearer <CRON_SECRET>`, or just open the tab: it reads the months and shows its progress.
+- If a month fails, yesterday's copy stays on screen and the next call carries on where the job stopped.
+- Custom dates that are not whole months (for example 5 Sep to 20 Sep) cannot be added up from months, so
+  those are read from Zoho directly (kept 5 minutes) and the top-right label says **Live**.
+- `GET /api/cron/status` also shows when the stock copy was read and which day it is for.
+- A local `npm run dev` reads the months again on the first visit of each new day (there is no 07:45 job locally).
+
 ## Known limitations / next steps
 
 - **Aging is invoice/bill-level, not the old Aging-Summary bucket structure.** AR shows

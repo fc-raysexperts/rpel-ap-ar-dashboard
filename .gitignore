@@ -21,3 +21,6 @@ npm-debug.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# one-off diagnostic routes (no login): used on localhost only, never pushed or deployed
+/app/api/debug/

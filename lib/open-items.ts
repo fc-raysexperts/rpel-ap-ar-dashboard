@@ -88,8 +88,15 @@ function keepJNResidual(items: Map<string, OpenItem[]>, credits: Map<string, num
   }
 }
 
-export function receivableItems(raw: RawZohoData, asOf: string, jn: JNIndex): OpenItems {
+/**
+ * `from` (optional) narrows the view to documents DATED on/after it, for a custom From-To range: invoices, journal
+ * lines, payments, credit notes and the opening balance older than `from` are left out. Their balances are still
+ * Zoho's balances as of the latest refresh (Zoho keeps no history on them), so a range answers "what is still unpaid
+ * from documents dated From..To". Without `from` nothing changes.
+ */
+export function receivableItems(raw: RawZohoData, asOf: string, jn: JNIndex, from?: string): OpenItems {
   const asOfDate = parseISO(asOf);
+  const early = (d: string) => from !== undefined && d < from; // dated before the range starts
   const active = new Set(raw.activeCustomers.map((c) => c.contact_id));
   const sets = accountSets(raw.ledgerAccounts);
   const items = new Map<string, OpenItem[]>();
@@ -98,7 +105,7 @@ export function receivableItems(raw: RawZohoData, asOf: string, jn: JNIndex): Op
   const leftInDocs = new Map<string, number>(); // JN spend that stays inside the documents' own balances (kept contacts)
 
   for (const inv of raw.invoices) {
-    if (!active.has(inv.customer_id) || isExcludedStatus(inv.status) || parseISO(inv.date) > asOfDate) continue;
+    if (!active.has(inv.customer_id) || isExcludedStatus(inv.status) || parseISO(inv.date) > asOfDate || early(inv.date)) continue;
     const spent = jn.appliedByInvoice.get(inv.invoice_id) ?? 0;
     if (kept.has(inv.customer_id)) add(leftInDocs, inv.customer_id, spent);
     const jnSpent = kept.has(inv.customer_id) ? 0 : spent;
@@ -107,7 +114,7 @@ export function receivableItems(raw: RawZohoData, asOf: string, jn: JNIndex): Op
     push(items, inv.customer_id, { kind: 'invoice', id: inv.invoice_id, date: inv.date, ageDate: inv.due_date, amount: open, jnSpent });
   }
   for (const j of raw.journals) {
-    if (parseISO(j.journal_date) > asOfDate) continue;
+    if (parseISO(j.journal_date) > asOfDate || early(j.journal_date)) continue;
     const unused = unusedFraction(j, 'receivable', sets);
     for (const l of j.line_items) {
       if (!l.contact_id || !active.has(l.contact_id)) continue;
@@ -124,7 +131,7 @@ export function receivableItems(raw: RawZohoData, asOf: string, jn: JNIndex): Op
   // Opening balance carried over from the old books (never in the invoice list).
   for (const c of raw.activeCustomers) {
     const ob = raw.openingBalances?.[c.contact_id];
-    if (!ob || parseISO(OPENING_BALANCE_DATE) > asOfDate) continue;
+    if (!ob || parseISO(OPENING_BALANCE_DATE) > asOfDate || early(OPENING_BALANCE_DATE)) continue;
     const spent = ob.docId ? (jn.appliedByInvoice.get(ob.docId) ?? 0) : 0;
     if (kept.has(c.contact_id)) add(leftInDocs, c.contact_id, spent);
     const jnSpent = kept.has(c.contact_id) ? 0 : spent;
@@ -133,23 +140,24 @@ export function receivableItems(raw: RawZohoData, asOf: string, jn: JNIndex): Op
     push(items, c.contact_id, { kind: 'opening', id: ob.docId ?? 'opening-balance', date: OPENING_BALANCE_DATE, ageDate: OPENING_BALANCE_DATE, amount: open, jnSpent });
   }
   for (const p of raw.customerPayments) {
-    if (!active.has(p.customer_id) || !p.unused_amount || isExcludedStatus(p.status) || parseISO(p.date) > asOfDate) continue;
+    if (!active.has(p.customer_id) || !p.unused_amount || isExcludedStatus(p.status) || parseISO(p.date) > asOfDate || early(p.date)) continue;
     add(credits, p.customer_id, p.unused_amount);
   }
   for (const cn of raw.creditNotes) {
-    if (!active.has(cn.customer_id) || !cn.balance || isExcludedStatus(cn.status) || parseISO(cn.date) > asOfDate) continue;
+    if (!active.has(cn.customer_id) || !cn.balance || isExcludedStatus(cn.status) || parseISO(cn.date) > asOfDate || early(cn.date)) continue;
     add(credits, cn.customer_id, cn.balance);
   }
   // JN-Clean rows kept for contacts where they do not cancel: debit - credit on the ledger, plus what was spent on documents
   for (const id of kept) {
-    if (!active.has(id)) continue;
+    if (!active.has(id) || early(jn.lastLineDate.get(id) ?? OPENING_BALANCE_DATE)) continue; // a range keeps it only if its latest line falls inside
     keepJNResidual(items, credits, id, (jn.netOnReceivable.get(id) ?? 0) + (leftInDocs.get(id) ?? 0), jn.lastLineDate.get(id));
   }
   return { items, credits };
 }
 
-export function payableItems(raw: RawZohoData, asOf: string, jn: JNIndex): OpenItems {
+export function payableItems(raw: RawZohoData, asOf: string, jn: JNIndex, from?: string): OpenItems {
   const asOfDate = parseISO(asOf);
+  const early = (d: string) => from !== undefined && d < from; // dated before the range starts
   const active = new Set(raw.activeVendors.map((v) => v.contact_id));
   const sets = accountSets(raw.ledgerAccounts);
   const items = new Map<string, OpenItem[]>();
@@ -158,7 +166,7 @@ export function payableItems(raw: RawZohoData, asOf: string, jn: JNIndex): OpenI
   const leftInDocs = new Map<string, number>();
 
   for (const b of raw.bills) {
-    if (!active.has(b.vendor_id) || isExcludedStatus(b.status) || parseISO(b.date) > asOfDate) continue;
+    if (!active.has(b.vendor_id) || isExcludedStatus(b.status) || parseISO(b.date) > asOfDate || early(b.date)) continue;
     const spent = jn.appliedByBill.get(b.bill_id) ?? 0;
     if (kept.has(b.vendor_id)) add(leftInDocs, b.vendor_id, spent);
     const jnSpent = kept.has(b.vendor_id) ? 0 : spent;
@@ -167,7 +175,7 @@ export function payableItems(raw: RawZohoData, asOf: string, jn: JNIndex): OpenI
     push(items, b.vendor_id, { kind: 'bill', id: b.bill_id, date: b.date, ageDate: b.due_date, amount: open, jnSpent });
   }
   for (const j of raw.journals) {
-    if (parseISO(j.journal_date) > asOfDate) continue;
+    if (parseISO(j.journal_date) > asOfDate || early(j.journal_date)) continue;
     const unused = unusedFraction(j, 'payable', sets);
     for (const l of j.line_items) {
       if (!l.contact_id || !active.has(l.contact_id)) continue;
@@ -183,7 +191,7 @@ export function payableItems(raw: RawZohoData, asOf: string, jn: JNIndex): OpenI
   }
   for (const v of raw.activeVendors) {
     const ob = raw.openingBalances?.[v.contact_id];
-    if (!ob || parseISO(OPENING_BALANCE_DATE) > asOfDate) continue;
+    if (!ob || parseISO(OPENING_BALANCE_DATE) > asOfDate || early(OPENING_BALANCE_DATE)) continue;
     const spent = ob.docId ? (jn.appliedByBill.get(ob.docId) ?? 0) : 0;
     if (kept.has(v.contact_id)) add(leftInDocs, v.contact_id, spent);
     const jnSpent = kept.has(v.contact_id) ? 0 : spent;
@@ -192,16 +200,16 @@ export function payableItems(raw: RawZohoData, asOf: string, jn: JNIndex): OpenI
     push(items, v.contact_id, { kind: 'opening', id: ob.docId ?? 'opening-balance', date: OPENING_BALANCE_DATE, ageDate: OPENING_BALANCE_DATE, amount: open, jnSpent });
   }
   for (const p of raw.vendorPayments) {
-    if (!active.has(p.vendor_id) || !p.unused_amount || isExcludedStatus(p.status) || parseISO(p.date) > asOfDate) continue;
+    if (!active.has(p.vendor_id) || !p.unused_amount || isExcludedStatus(p.status) || parseISO(p.date) > asOfDate || early(p.date)) continue;
     add(credits, p.vendor_id, p.unused_amount + (raw.vendorPaymentTds?.[p.payment_id] ?? 0));
   }
   for (const c of raw.vendorCredits) {
-    if (!active.has(c.vendor_id) || !c.balance || isExcludedStatus(c.status) || parseISO(c.date) > asOfDate) continue;
+    if (!active.has(c.vendor_id) || !c.balance || isExcludedStatus(c.status) || parseISO(c.date) > asOfDate || early(c.date)) continue;
     add(credits, c.vendor_id, c.balance);
   }
   // JN-Clean rows kept for contacts where they do not cancel: credit - debit on the ledger, plus what was spent on documents
   for (const id of kept) {
-    if (!active.has(id)) continue;
+    if (!active.has(id) || early(jn.lastLineDate.get(id) ?? OPENING_BALANCE_DATE)) continue;
     keepJNResidual(items, credits, id, -(jn.netOnPayable.get(id) ?? 0) + (leftInDocs.get(id) ?? 0), jn.lastLineDate.get(id));
   }
   return { items, credits };

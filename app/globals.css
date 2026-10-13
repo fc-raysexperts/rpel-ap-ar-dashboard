@@ -2,6 +2,16 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+  :focus-visible {
+    outline: 2px solid #2F6FED;
+    outline-offset: 2px;
+  }
+}
+
 @layer utilities {
   .tabular {
     font-variant-numeric: tabular-nums;
@@ -9,5 +19,24 @@
 }
 
 ::selection {
-  background-color: #b08d5733;
+  background-color: #2f6fed33;
+}
+
+@keyframes modal-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.modal-in {
+  animation: modal-in 160ms ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .modal-in {
+    animation: none;
+  }
 }

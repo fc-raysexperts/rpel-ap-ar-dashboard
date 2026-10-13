@@ -31,6 +31,8 @@ export interface ARSummary {
     unappliedCredits: number;
     netTotal: number;
   };
+  /** Set for a custom From-To range: only documents dated from this day on are counted (see receivableItems). */
+  fromDate?: string;
   /** Zoho's ledger total over the same listed customers (undefined if no ledger for this date). */
   ledgerGrandTotal?: number;
   /** Contacts listed whose documents do not add up to the ledger (|gap| > Re. 1). */
@@ -64,11 +66,11 @@ const TOL = 1; // rupees
 export function computeARDetail(
   raw: RawZohoData,
   asOf: string,
-  opts: { ledger?: LedgerBalances | null; historical?: boolean; aging?: AgingRecord | null } = {}
+  opts: { ledger?: LedgerBalances | null; historical?: boolean; aging?: AgingRecord | null; from?: string } = {}
 ): CustomerAR[] {
   const jn = buildJNIndex(raw.jnClean, asOf, raw.ledgerAccounts);
   const kept = keptJNContacts(jn, 'receivable'); // contacts whose JN-Clean rows are kept because they do not cancel
-  const { items, credits } = receivableItems(raw, asOf, jn);
+  const { items, credits } = receivableItems(raw, asOf, jn, opts.from);
   const ledger = opts.ledger?.customers;
   // Past date with Zoho's aging report stored for that day: exact buckets (see lib/aging.ts)
   const reportBuckets = opts.historical && opts.aging && ledger ? historicalBuckets(raw, asOf, jn, items, opts.aging) : null;
@@ -119,8 +121,10 @@ export function computeARDetail(
 export function computeARSummary(
   raw: RawZohoData,
   asOf: string,
-  opts: { ledger?: LedgerBalances | null; historical?: boolean; aging?: AgingRecord | null } = {}
+  opts: { ledger?: LedgerBalances | null; historical?: boolean; aging?: AgingRecord | null; from?: string } = {}
 ): ARSummary {
+  // A custom range counts only part of the documents, so Zoho's whole-contact ledger cannot be a check on it.
+  if (opts.from !== undefined) opts = { ...opts, ledger: null, historical: false, aging: null };
   const customers = computeARDetail(raw, asOf, opts).filter((c) => c.netTotal > TOL || (c.ledgerTotal ?? 0) > TOL);
   customers.sort((a, b) => b.netTotal - a.netTotal);
 
@@ -139,6 +143,7 @@ export function computeARSummary(
 
   return {
     asOfDate: asOf,
+    ...(opts.from !== undefined ? { fromDate: opts.from } : {}),
     customers,
     grandTotal,
     ledgerGrandTotal: haveLedger

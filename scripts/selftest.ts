@@ -20,6 +20,7 @@ delete process.env.JN_CLEAN_RULE; // the tests choose the rule themselves; a val
 import { fetchAllRawData, type RawZohoData } from '../lib/zoho-raw-fetch';
 import { computeARDetail, computeARSummary } from '../lib/ar-calculator';
 import { computeAPDetail, computeAPSummary } from '../lib/ap-calculator';
+import { ZB_EARLIEST_DATE, clampISO, isISODate, rangeFrom } from '../lib/period';
 import { ledgerFromContacts, getLedgerFor, cacheDay, calibrate, parseReportRows } from '../lib/ledger';
 import { buildJNIndex, extractJNEntry, type JNCleanEntry } from '../lib/jn-clean';
 import { splitAtEdge, type OpenItem } from '../lib/open-items';
@@ -1026,6 +1027,25 @@ globalThis.fetch = (async (input: string | URL | Request) => {
   const v2 = ap.vendors.find((v) => v.vendorId === 'V2');
   check('foreign currency: USD 400 bill at 90 = Rs 36,000; USD 100 advance = Rs 9,100 (Zoho\'s own bcy figure); contact read in rupees', !!v2 && v2.gap === 0 && raw.bills.find((b) => b.bill_id === 'B3')?.balance === 36000 && raw.vendorPayments.find((p) => p.payment_id === 'P4')?.unused_amount === 9100 && raw.activeVendors.find((c) => c.contact_id === 'V2')?.outstanding_payable_amount === 5036000);
   check('no contacts flagged in the clean scenario', ar.unreconciledCount === 0 && ap.unreconciledCount === 0);
+
+  // ---- custom From-To range: only documents dated From..To (inclusive), no ledger check, limits enforced
+  const rng1 = computeARSummary(rawNow, today, { from: '2026-07-15' });
+  const rngC3 = rng1.customers.find((c) => c.customerId === 'C3');
+  check('range From 15 Jul: C1 (invoice 1 Jul) and C5 (opening balance, older) drop out; C3 (invoice 1 Aug) stays', !rng1.customers.some((c) => c.customerId === 'C1') && !rng1.customers.some((c) => c.customerId === 'C5') && !!rngC3);
+  check('range keeps C3 at its invoice less its credit (Rs 11,82,022), nothing else changed', !!rngC3 && near(rngC3.netTotal, 1182022), rngC3 ? inr(rngC3.netTotal) : 'missing');
+  check('range answer says so (fromDate) and has no ledger check to flag against', rng1.fromDate === '2026-07-15' && rng1.ledgerGrandTotal === undefined && rng1.unreconciledCount === 0 && rng1.customers.every((c) => c.ledgerTotal === undefined && c.gap === 0));
+  check('range From is inclusive: an invoice dated exactly on From is counted', computeARSummary(rawNow, today, { from: '2026-07-01' }).customers.some((c) => c.customerId === 'C1'));
+  check('range To is inclusive/respected: To 15 Jul leaves out the 1 Aug invoice (C3) but keeps C1', (() => { const r = computeARSummary(rawNow, '2026-07-15', { from: '2026-07-01' }); return r.customers.some((c) => c.customerId === 'C1') && !r.customers.some((c) => c.customerId === 'C3'); })());
+  check('no From = exactly the ordinary figures (no fromDate, same totals)', computeARSummary(rawNow, today, { ledger }).fromDate === undefined && near(computeARSummary(rawNow, today, { ledger }).grandTotal.netTotal, ar.grandTotal.netTotal));
+  const rngP1 = computeAPSummary(rawNow, today, { from: '2026-07-25' });
+  const rngP1v2 = rngP1.vendors.find((v) => v.vendorId === 'V2');
+  check('AP range From 25 Jul: V2 keeps only its 1 Aug bill (Rs 36,000), the 20 Jul bill drops out', !!rngP1v2 && near(rngP1v2.billedTotal, 36000) && rngP1.fromDate === '2026-07-25' && rngP1.ledgerGrandTotal === undefined, rngP1v2 ? inr(rngP1v2.billedTotal) : 'missing');
+  check('AP range From 1 Jul keeps both V2 bills (Rs 50,36,000)', near(computeAPSummary(rawNow, today, { from: '2026-07-01' }).vendors.find((v) => v.vendorId === 'V2')?.billedTotal ?? NaN, 5036000));
+  // the limits the page and the API both use
+  check('first day of the books is 31 Mar 2025', ZB_EARLIEST_DATE === '2025-03-31');
+  check('rangeFrom: a From on/before the first day of the books is no restriction (answered like a plain "up to this date")', rangeFrom('2025-03-31', today) === undefined && rangeFrom('2024-01-01', today) === undefined && rangeFrom('2020-05-05', today) === undefined);
+  check('rangeFrom: a real From is kept; one after the To is pulled back to the To; junk is ignored', rangeFrom('2026-07-15', today) === '2026-07-15' && rangeFrom('2026-12-31', today) === today && rangeFrom('garbage', today) === undefined && rangeFrom(null, today) === undefined && rangeFrom('2026-02-30', today) === undefined);
+  check('isISODate / clampISO', isISODate('2026-10-05') && !isISODate('2026-13-01') && !isISODate('05/10/2026') && clampISO('2019-01-01', ZB_EARLIEST_DATE, today) === ZB_EARLIEST_DATE && clampISO('2030-01-01', ZB_EARLIEST_DATE, today) === today && clampISO('2026-01-01', ZB_EARLIEST_DATE, today) === '2026-01-01');
 
   // foreign currency, read from Zoho's own figures through the real fetch
   const v2c = raw.activeVendors.find((c) => c.contact_id === 'V2');

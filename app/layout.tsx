@@ -1,9 +1,11 @@
 import type { Metadata } from 'next';
 import './globals.css';
+import { APP_NAME, FIRM_NAME } from '@/lib/brand';
 
+// The tab icon is app/icon.png (and app/apple-icon.png): Next.js adds the <link> tags for them by itself.
 export const metadata: Metadata = {
-  title: 'RPEL — AP / AR Ledger',
-  description: 'Live Creditors and Debtors position, direct from Zoho Books.',
+  title: `${APP_NAME} | ${FIRM_NAME}`,
+  description: 'Debtors and creditors position, refreshed daily from Zoho Books.',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -13,11 +15,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link
-          href="https://fonts.googleapis.com/css2?family=Source+Serif+4:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap"
+          href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap"
           rel="stylesheet"
         />
       </head>
-      <body className="bg-paper text-ink font-sans antialiased">{children}</body>
+      <body className="bg-paper font-sans text-ink antialiased">{children}</body>
     </html>
   );
 }
