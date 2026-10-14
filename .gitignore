@@ -24,3 +24,9 @@ next-env.d.ts
 
 # one-off diagnostic routes (no login): used on localhost only, never pushed or deployed
 /app/api/debug/
+
+# update bundles (dashboard-update-v*.zip) and other archives: never part of the code
+*.zip
+
+# saved Zoho valuation/stock data from the one-off probe: contains real figures, never push
+valuation-compare_*.json
