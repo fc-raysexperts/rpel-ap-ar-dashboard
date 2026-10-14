@@ -66,24 +66,18 @@ export function StockSummary({ data, loading }: { data: StockApiData | null; loa
     <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
       <Card
         tone="ledger"
-        title="Items listed"
-        note="Each on its own line"
-        value={String(data?.lines.length ?? 0)}
+        title="Opening Stock"
+        note={data ? `At the start of ${prettyStockDate(data.from)}` : 'Opening Stock'}
+        value={formatQty(data?.total.opening ?? 0)}
         rupee={false}
         loading={loading}
         icon={
           <svg {...iconProps}>
-            <path d="M6 5h10M6 10h10M6 15h10M3 5h.01M3 10h.01M3 15h.01" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M10 3v8m0 0L7 8m3 3l3-3M4 13v2a1 1 0 001 1h10a1 1 0 001-1v-2" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         }
       >
-        <p className="mt-5 text-[12px] tabular text-ink/60">
-          {data ? (
-            <>
-              Last line: {data.other.itemCount} {data.other.itemCount === 1 ? 'item' : 'items'}, <b className="font-semibold text-ink/85">₹{formatINR(data.other.closingValue)}</b>
-            </>
-          ) : null}
-        </p>
+        <p className="mt-5 text-[12px] text-ink/60">Grand Total of the Opening Stock column</p>
       </Card>
 
       <Card
