@@ -216,6 +216,25 @@ console.log('--- Part A: official Statements ---');
   check('status filter: "pending_approval", "Pending Approval" and "submitted" are all excluded', isExcludedStatus('pending_approval') && isExcludedStatus('Pending Approval') && isExcludedStatus('submitted') && !isExcludedStatus('partially_paid') && !isExcludedStatus('overdue'));
 }
 
+// ---- A7b. POWERGRID SIWANI: an invoice that is APPROVED but not yet SENT is not in Zoho's ledger (17 Oct 2026)
+{
+  const P = 'PG1';
+  const mk = (status: string) => {
+    const raw = emptyRaw('2026-10-17T01:50:00Z');
+    raw.activeCustomers = [{ contact_id: P, contact_name: 'POWERGRID SIWANI TRANSMISSION LIMITED', contact_type: 'customer', status: 'active', outstanding_receivable_amount: status === 'sent' ? 288770 : 0, unused_credits_receivable_amount: 0 }];
+    raw.invoices = [{ invoice_id: 'RPE577', customer_id: P, date: '2026-10-14', due_date: '2026-10-29', total: 288770, balance: 288770, status }];
+    return raw;
+  };
+  const approved = mk('approved');
+  const r = computeARDetail(approved, '2026-10-17', { ledger: ledgerFromContacts(approved) })[0];
+  check('Powergrid Siwani: invoice approved but not sent is left out, so documents (0) = Zoho ledger (0) and nothing is flagged', r.netTotal === 0 && r.ledgerTotal === 0 && r.gap === 0, `documents ${inr(r.netTotal)}, ledger ${inr(r.ledgerTotal ?? NaN)}, gap ${r.gap}`);
+  check('Powergrid Siwani: it is not listed and the "to review" count is 0', computeARSummary(approved, '2026-10-17', { ledger: ledgerFromContacts(approved) }).unreconciledCount === 0 && computeARSummary(approved, '2026-10-17', { ledger: ledgerFromContacts(approved) }).customers.length === 0);
+  const sent = mk('sent');
+  const s2 = computeARDetail(sent, '2026-10-17', { ledger: ledgerFromContacts(sent) })[0];
+  check('Powergrid Siwani: once the same invoice is marked Sent, Zoho posts it and the dashboard counts Rs 2,88,770 with no flag', near(s2.netTotal, 288770) && near(s2.ledgerTotal ?? NaN, 288770) && s2.gap === 0, `documents ${inr(s2.netTotal)}, ledger ${inr(s2.ledgerTotal ?? NaN)}, gap ${s2.gap}`);
+  check('status filter: "approved" and "Approved" are excluded; "sent", "open", "overdue" are not', isExcludedStatus('approved') && isExcludedStatus('Approved') && !isExcludedStatus('sent') && !isExcludedStatus('open') && !isExcludedStatus('overdue'));
+}
+
 // ---- A8. Sangam Solar One: a Rs 10.15 cr debit journal, Rs 1.02 cr of it already applied to bills, plus a Rs 60 lakh advance
 {
   const raw = emptyRaw('2026-10-06T10:00:00Z');
